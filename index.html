@@ -1,0 +1,209 @@
+<!DOCTYPE HTML>
+<html>    
+    <head>        
+        <title>Teste</title>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.js"></script>
+    </head>
+
+    <body>
+
+        <div style="text-align: center">
+            <canvas id="myCanvas" width="850" height="635" 
+                    onmousemove="handleMouseMove(event);" 
+                    onmouseout="handleMouseOut(event);" 
+                    onclick="handleClick(event);">                        
+            </canvas>
+        </div>
+
+        <p id="texto">Teste</p>        
+        <p id="posicao">Posicao</p>
+
+        <div id="dialog-disponivel" style="display:none; width: 250px; height: 130px; background-color: white; text-align: center">
+            <p>Ajude voc&ecirc; tamb&eacute;m a inverter este quadro</p>
+            <form target="pagseguro" action="https://pagseguro.uol.com.br/checkout/v2/donation.html" method="post">            
+                <input type="hidden" name="receiverEmail" value="efgalego@gmail.com" />
+                <input type="hidden" name="currency" value="BRL" />
+                <input type="hidden" name="donationValue" value="10.00"/>
+                <input type="image" src="https://p.simg.uol.com.br/out/pagseguro/i/botoes/doacoes/205x30-doar.gif" name="submit" alt="Pague com PagSeguro - é rápido, grátis e seguro!" />
+            </form>
+        </div>
+
+        <div id="dialog-ocupado" style="display:none; width: 250px; height: 170px; background-color: white; text-align: center">
+            <p>Eu ajudei a inverter este quadro</p>
+            <p id="nome-ocupado"></p>
+            <img id="img-ocupado" src="imagens/foto-doador.png" alt="" style="width: 90px; height: 70px"  />
+        </div>
+
+        <script>
+            var quadro_doacao = [];
+
+            function createCORSRequest(method, url) {
+                var xhr = new XMLHttpRequest();
+                if ("withCredentials" in xhr) {
+                    xhr.open(method, url, true);
+                } else if (typeof XDomainRequest !== "undefined") {
+                    xhr = new XDomainRequest();
+                    xhr.open(method, url);
+                } else {
+                    xhr = null;
+                }
+                return xhr;
+            }
+
+            var xhr = createCORSRequest('GET', "http://localhost:8080/");
+            if (!xhr) {
+                throw new Error('CORS não suportado');
+            }
+
+            function init() {
+                xhr.open('GET', "http://localhost:8080/DoacaoWS/doacao/quadro/", true);
+                xhr.send(null);
+                xhr.onloadend = function() {
+                    if (xhr.status === 200) {
+                        if (xhr.responseText !== "") {
+                            quadro_doacao = JSON.parse(xhr.responseText);
+                        }
+                    } else {
+                        document.getElementById("posicao").textContent = "Erro";
+                    }
+                    loadImage();
+                };
+            }
+            init();
+
+            var canvas = document.getElementById('myCanvas');
+            var context = canvas.getContext('2d');
+
+            var velho = new Image();
+            velho.src = 'imagens/cidade.jpg';
+
+            var novo = new Image();
+            novo.src = 'imagens/natureza.png';
+
+            var bloco = 20;
+            var espaco = 1;
+
+            var lastX = -1;
+            var lastY = -1;
+
+            //velho.onload = loadImage();
+
+            function loadImage() {
+                y = 0;
+                dy = 0;
+                while (y < velho.height) {
+                    x = 0;
+                    dx = 0;
+                    while (x < velho.width) {
+                        context.drawImage(velho, x, y, bloco, bloco, dx, dy, bloco, bloco);
+                        dx += bloco + espaco;
+                        x += bloco;
+                    }
+                    y += bloco;
+                    dy += bloco + espaco;
+                }
+
+                if (typeof quadro_doacao !== 'undefined' && quadro_doacao.length > 0) {
+                    quadro_doacao.forEach(function(entry) {
+                        if (entry.estado === "confirmado" || entry.estado === "reservado") {
+                            posX = entry.x * bloco;
+                            posY = entry.y * bloco;
+
+                            context.drawImage(novo, posX, posY, bloco, bloco, posX + (entry.x * espaco), posY + (entry.y * espaco), bloco, bloco);
+                        }
+                    });
+                }
+            }
+
+            function handleMouseMove(event) {
+                var rect = canvas.getBoundingClientRect();
+                x = event.clientX - Math.round(rect.left);
+                y = event.clientY - Math.round(rect.top);
+                document.getElementById("texto").textContent = x + " " + y;
+
+                realcarQuadro(x, y);
+            }
+
+            function realcarQuadro(mouseX, mouseY) {
+                posX = Math.floor(mouseX / (bloco + espaco));
+                posY = Math.floor(mouseY / (bloco + espaco));
+                document.getElementById("posicao").textContent = posX + " " + posY;
+
+                if (lastX !== posX || lastY !== posY) {
+                    lastX = posX;
+                    lastY = posY;
+
+                    iniX = posX * (bloco + espaco);
+                    iniY = posY * (bloco + espaco);
+
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+                    loadImage();
+
+                    if ( canvas.width > iniX+bloco && canvas.height > iniY+bloco) {
+                        context.beginPath();
+                        context.lineWidth = "4";
+                        context.strokeStyle = "red";
+                        context.rect(iniX, iniY, bloco, bloco);
+                        context.stroke();
+                    }
+                }
+            }
+
+            function handleMouseOut(event) {
+                document.getElementById("texto").textContent = "-1 -1";
+
+                lastX = -1;
+                lastY = -1;
+                document.getElementById("posicao").textContent = lastX + " " + lastY;
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                loadImage();
+            }
+
+            function handleClick(event) {
+                hideDialogs();
+
+                atual = quadroAtual(event);
+                jQuery.each(quadro_doacao, function() {
+                    if (this.x === atual.x && this.y === atual.y && (this.estado === "confirmado" || this.estado === "reservado")) {
+                        dialog = document.getElementById('dialog-ocupado');
+                        dialog.style.display = "block";
+                        dialog.style.position = "absolute";
+                        dialog.style.left = event.clientX + 'px';
+                        dialog.style.top = event.clientY + 'px';
+                        document.getElementById("img-ocupado").src = this.doadorFoto;
+                        document.getElementById("nome-ocupado").textContent = this.doadorNome;
+                        return;
+                    }
+                });
+
+                dialog = document.getElementById('dialog-disponivel');
+                dialog.style.display = "block";
+                dialog.style.position = "absolute";
+                dialog.style.left = event.clientX + 'px';
+                dialog.style.top = event.clientY + 'px';
+            }
+
+            function quadroAtual(event) {
+                var rect = canvas.getBoundingClientRect();
+                x = event.clientX - Math.round(rect.left);
+                y = event.clientY - Math.round(rect.top);
+
+                posX = Math.floor(x / (bloco + espaco));
+                posY = Math.floor(y / (bloco + espaco));
+                return {
+                    x: posX,
+                    y: posY
+                };
+            }
+
+            function hideDialogs() {
+                dialog = document.getElementById('dialog-ocupado');
+                dialog.style.display = "none";
+
+                dialog = document.getElementById('dialog-disponivel');
+                dialog.style.display = "none";
+            }
+        </script>
+    </body>
+</html>

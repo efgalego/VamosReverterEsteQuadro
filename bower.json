@@ -1,0 +1,21 @@
+{
+  "name": "VamosReverterEsteQuadro",
+  "description": "Site de doações colaborativo",
+  "main": "index.html",
+  "authors": [
+    "GALEGO",
+    "Eduardo"
+  ],
+  "license": "MIT",
+  "homepage": "www.vamosreverterestequadro.com.br",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "^3.1.1"
+  }
+}
